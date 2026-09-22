@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "SmartCare",
+    "slug": "SmartCare",
+    "scheme": "smartcare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.SmartCare"
+    },
+    "android": {
+      "package": "com.anonymous.SmartCare"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "05d8b2e9-ded2-4e16-ab1c-d79a1f2be9d8"
+      }
+    }
+  }
+}
