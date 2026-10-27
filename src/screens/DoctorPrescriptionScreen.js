@@ -20,6 +20,7 @@ export default function DoctorPrescriptionScreen() {
   const [activeTab, setActiveTab] = useState('write');
   
   const [patientName, setPatientName] = useState('');
+  const [selectedPatientUid, setSelectedPatientUid] = useState(null);
   const [medicines, setMedicines] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -42,6 +43,7 @@ export default function DoctorPrescriptionScreen() {
   };
 
   useEffect(() => {
+    let unsubscribe;
     const fetchDoctorAndQueue = async () => {
       if (auth.currentUser) {
         const docRef = doc(db, 'users', auth.currentUser.uid);
@@ -56,7 +58,7 @@ export default function DoctorPrescriptionScreen() {
           where('status', 'in', ['waiting', 'serving'])
         );
         
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        unsubscribe = onSnapshot(q, (snapshot) => {
           const list = [];
           snapshot.forEach(docSnap => {
             list.push({ id: docSnap.id, ...docSnap.data() });
@@ -64,11 +66,13 @@ export default function DoctorPrescriptionScreen() {
           list.sort((a, b) => a.tokenNumber - b.tokenNumber);
           setQueuePatients(list);
         });
-
-        return () => unsubscribe();
       }
     };
     fetchDoctorAndQueue();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleSavePrescription = async () => {
@@ -85,6 +89,7 @@ export default function DoctorPrescriptionScreen() {
 
       await addDoc(collection(db, 'prescriptions'), {
         patientName: patientName.trim(),
+        patientUid: selectedPatientUid || null,
         medicines: medicines.trim(),
         notes: notes.trim(),
         doctorId: auth.currentUser.uid,
@@ -95,6 +100,7 @@ export default function DoctorPrescriptionScreen() {
 
       Alert.alert('සාර්ථකයි!', 'ඖෂධ වට්ටෝරුව සාර්ථකව Pharmacy වෙත යවන ලදී.');
       setPatientName('');
+      setSelectedPatientUid(null);
       setMedicines('');
       setNotes('');
     } catch (error) {
@@ -176,7 +182,10 @@ export default function DoctorPrescriptionScreen() {
               placeholder="නම ඇතුළත් කරන්න හෝ පහතින් තෝරන්න"
               placeholderTextColor={theme.textSub}
               value={patientName}
-              onChangeText={setPatientName}
+              onChangeText={(text) => {
+                setPatientName(text);
+                setSelectedPatientUid(null);
+              }}
             />
 
             {queuePatients.length > 0 && (
@@ -197,7 +206,10 @@ export default function DoctorPrescriptionScreen() {
                         borderWidth: 1,
                         borderColor: theme.borderColor
                       }}
-                      onPress={() => setPatientName(item.patientName)}
+                      onPress={() => {
+                        setPatientName(item.patientName);
+                        setSelectedPatientUid(item.patientUid || null);
+                      }}
                     >
                       <Text style={{ fontSize: 12, fontWeight: 'bold', color: patientName === item.patientName ? '#fff' : theme.highlight }}>
                         #{item.tokenNumber} - {item.patientName}

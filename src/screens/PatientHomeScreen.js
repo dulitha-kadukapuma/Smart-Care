@@ -21,7 +21,7 @@ import {
   where, 
   serverTimestamp 
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db, auth } from '../config/firebase';
 import * as Haptics from 'expo-haptics';
 import { createAudioPlayer } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
@@ -189,6 +189,7 @@ export default function PatientHomeScreen() {
 
       const tokenData = {
         patientName: patientName.trim(),
+        patientUid: auth.currentUser?.uid || null,
         doctorId: selectedDoctor.id,
         doctorName: getDocName(selectedDoctor),
         tokenNumber: tokenNum,

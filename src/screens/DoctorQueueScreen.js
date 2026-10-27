@@ -99,6 +99,18 @@ export default function DoctorQueueScreen() {
     try {
       const nextPatient = waitingPatients[0];
 
+      // Mark previously serving patient(s) as completed
+      const servingQuery = query(
+        collection(db, 'tokens'),
+        where('doctorId', '==', doctorId),
+        where('status', '==', 'serving')
+      );
+      const servingSnap = await getDocs(servingQuery);
+      const completePromises = servingSnap.docs.map((docSnap) =>
+        updateDoc(doc(db, 'tokens', docSnap.id), { status: 'completed' })
+      );
+      await Promise.all(completePromises);
+
       const queueDocRef = doc(db, 'queues', doctorId);
       await setDoc(queueDocRef, {
         currentServingToken: nextPatient.tokenNumber,

@@ -7,7 +7,7 @@ import {
   ActivityIndicator, 
   TouchableOpacity 
 } from 'react-native';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -28,64 +28,111 @@ export default function PatientHistoryScreen() {
 
     setLoading(true);
 
-    // 2. Prescriptions Query
-    const prescriptionsRef = collection(db, 'prescriptions');
-    const qPrescriptions = query(
-      prescriptionsRef,
-      where('patientUid', '==', currentUser.uid)
-    );
+    let unsubscribePrescriptions = () => {};
+    let unsubscribeTokens = () => {};
 
-    const unsubscribePrescriptions = onSnapshot(
-      qPrescriptions, 
-      (snapshot) => {
-        const list = [];
-        snapshot.forEach((docSnap) => {
-          list.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        
-        // අලුත්ම දත්ත උඩින් පෙන්වන පරිදි Sort කිරීම
-        list.sort((a, b) => {
-          const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
-          const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
-          return timeB - timeA;
-        });
+    const setup = async () => {
+      let userName = '';
+      try {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists() && userDoc.data().name) {
+          userName = userDoc.data().name.trim();
+        }
+      } catch (err) {}
 
-        setPrescriptions(list);
-        setLoading(false);
-      }, 
-      (error) => {
-        console.log('Prescriptions Listener Error:', error);
-        setLoading(false);
-      }
-    );
+      // 2. Prescriptions Query
+      const prescriptionsRef = collection(db, 'prescriptions');
+      const qPrescriptions = query(
+        prescriptionsRef,
+        where('patientUid', '==', currentUser.uid)
+      );
 
-    // 3. Tokens (Visits) Query
-    const tokensRef = collection(db, 'tokens');
-    const qTokens = query(
-      tokensRef,
-      where('patientUid', '==', currentUser.uid)
-    );
+      unsubscribePrescriptions = onSnapshot(
+        qPrescriptions, 
+        async (snapshot) => {
+          const list = [];
+          const seen = new Set();
+          snapshot.forEach((docSnap) => {
+            seen.add(docSnap.id);
+            list.push({ id: docSnap.id, ...docSnap.data() });
+          });
 
-    const unsubscribeTokens = onSnapshot(
-      qTokens, 
-      (snapshot) => {
-        const tokenList = [];
-        snapshot.forEach((docSnap) => {
-          tokenList.push({ id: docSnap.id, ...docSnap.data() });
-        });
+          // Fallback for legacy prescriptions without patientUid
+          if (userName) {
+            try {
+              const legacyQ = query(prescriptionsRef, where('patientName', '==', userName));
+              const legacySnap = await getDocs(legacyQ);
+              legacySnap.forEach((docSnap) => {
+                if (!seen.has(docSnap.id)) {
+                  seen.add(docSnap.id);
+                  list.push({ id: docSnap.id, ...docSnap.data() });
+                }
+              });
+            } catch (e) {}
+          }
 
-        tokenList.sort((a, b) => {
-          const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
-          const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
-          return timeB - timeA;
-        });
+          // අලුත්ම දත්ත උඩින් පෙන්වන පරිදි Sort කිරීම
+          list.sort((a, b) => {
+            const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+            const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+            return timeB - timeA;
+          });
 
-        setTokens(tokenList);
-      }, 
-      (error) => {
-        console.log('Tokens Listener Error:', error);
-      }
-    );
+          setPrescriptions(list);
+          setLoading(false);
+        }, 
+        (error) => {
+          console.log('Prescriptions Listener Error:', error);
+          setLoading(false);
+        }
+      );
+
+      // 3. Tokens (Visits) Query
+      const tokensRef = collection(db, 'tokens');
+      const qTokens = query(
+        tokensRef,
+        where('patientUid', '==', currentUser.uid)
+      );
+
+      unsubscribeTokens = onSnapshot(
+        qTokens, 
+        async (snapshot) => {
+          const tokenList = [];
+          const seenTokens = new Set();
+          snapshot.forEach((docSnap) => {
+            seenTokens.add(docSnap.id);
+            tokenList.push({ id: docSnap.id, ...docSnap.data() });
+          });
+
+          // Fallback for legacy tokens without patientUid
+          if (userName) {
+            try {
+              const legacyTokenQ = query(tokensRef, where('patientName', '==', userName));
+              const legacyTokenSnap = await getDocs(legacyTokenQ);
+              legacyTokenSnap.forEach((docSnap) => {
+                if (!seenTokens.has(docSnap.id)) {
+                  seenTokens.add(docSnap.id);
+                  tokenList.push({ id: docSnap.id, ...docSnap.data() });
+                }
+              });
+            } catch (e) {}
+          }
+
+          tokenList.sort((a, b) => {
+            const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+            const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+            return timeB - timeA;
+          });
+
+          setTokens(tokenList);
+        }, 
+        (error) => {
+          console.log('Tokens Listener Error:', error);
+        }
+      );
+    };
+
+    setup();
 
     return () => {
       unsubscribePrescriptions();
