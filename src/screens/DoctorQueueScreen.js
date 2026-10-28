@@ -22,6 +22,7 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../config/firebase';
 import { Ionicons } from '@expo/vector-icons';
+import { sendNowServingSMS } from '../services/smsService';
 
 export default function DoctorQueueScreen() {
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
@@ -122,6 +123,17 @@ export default function DoctorQueueScreen() {
 
       const tokenDocRef = doc(db, 'tokens', nextPatient.id);
       await updateDoc(tokenDocRef, { status: 'serving' });
+
+      // Send SMS via Notify.lk
+      if (nextPatient.patientPhone) {
+        sendNowServingSMS({
+          phone: nextPatient.patientPhone,
+          patientName: nextPatient.patientName,
+          tokenNumber: nextPatient.tokenNumber,
+          doctorName: queueInfo?.doctorName || 'Dr. Doctor',
+          roomNo: queueInfo?.roomNo || 'Room 01',
+        }).catch((err) => console.log('Notify.lk Now Serving SMS error:', err));
+      }
 
     } catch (error) {
       Alert.alert("Error", "Call Next Patient අසාර්ථක විය: " + error.message);
@@ -250,6 +262,9 @@ export default function DoctorQueueScreen() {
             </View>
             <View style={styles.patientInfo}>
               <Text style={styles.patientName}>{item.patientName}</Text>
+              {item.patientPhone ? (
+                <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>📱 {item.patientPhone}</Text>
+              ) : null}
               <Text style={styles.statusLabel}>WAITING</Text>
             </View>
           </View>

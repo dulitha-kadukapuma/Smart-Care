@@ -18,6 +18,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [role, setRole] = useState('patient');
   const [specialization, setSpecialization] = useState('General Physician');
   const [loading, setLoading] = useState(false);
@@ -53,6 +54,7 @@ export default function LoginScreen() {
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           name: name.trim(),
+          phone: phone.trim() || null,
           email: email.trim(),
           role: role,
           specialization: role === 'doctor' ? specialization : null,
@@ -92,6 +94,16 @@ export default function LoginScreen() {
             placeholder="e.g. Nimal Silva"
             value={name}
             onChangeText={setName}
+          />
+
+          <Text style={styles.label}>දුරකථන අංකය (Mobile Number)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. 0771234567"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            maxLength={12}
           />
 
           <Text style={styles.label}>පරිශීලක වර්ගය (Select Role)</Text>

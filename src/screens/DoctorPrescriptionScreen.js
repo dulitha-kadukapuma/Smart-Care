@@ -21,6 +21,7 @@ export default function DoctorPrescriptionScreen() {
   
   const [patientName, setPatientName] = useState('');
   const [selectedPatientUid, setSelectedPatientUid] = useState(null);
+  const [selectedPatientPhone, setSelectedPatientPhone] = useState('');
   const [medicines, setMedicines] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -90,6 +91,7 @@ export default function DoctorPrescriptionScreen() {
       await addDoc(collection(db, 'prescriptions'), {
         patientName: patientName.trim(),
         patientUid: selectedPatientUid || null,
+        patientPhone: selectedPatientPhone || null,
         medicines: medicines.trim(),
         notes: notes.trim(),
         doctorId: auth.currentUser.uid,
@@ -101,6 +103,7 @@ export default function DoctorPrescriptionScreen() {
       Alert.alert('සාර්ථකයි!', 'ඖෂධ වට්ටෝරුව සාර්ථකව Pharmacy වෙත යවන ලදී.');
       setPatientName('');
       setSelectedPatientUid(null);
+      setSelectedPatientPhone('');
       setMedicines('');
       setNotes('');
     } catch (error) {
@@ -185,6 +188,7 @@ export default function DoctorPrescriptionScreen() {
               onChangeText={(text) => {
                 setPatientName(text);
                 setSelectedPatientUid(null);
+                setSelectedPatientPhone('');
               }}
             />
 
@@ -209,6 +213,7 @@ export default function DoctorPrescriptionScreen() {
                       onPress={() => {
                         setPatientName(item.patientName);
                         setSelectedPatientUid(item.patientUid || null);
+                        setSelectedPatientPhone(item.patientPhone || '');
                       }}
                     >
                       <Text style={{ fontSize: 12, fontWeight: 'bold', color: patientName === item.patientName ? '#fff' : theme.highlight }}>

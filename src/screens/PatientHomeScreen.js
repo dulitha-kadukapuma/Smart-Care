@@ -17,11 +17,13 @@ import {
   onSnapshot, 
   addDoc, 
   getDocs, 
+  getDoc,
   query, 
   where, 
   serverTimestamp 
 } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
+import { sendTokenConfirmationSMS, formatSriLankanPhone } from '../services/smsService';
 import * as Haptics from 'expo-haptics';
 import { createAudioPlayer } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +39,7 @@ export default function PatientHomeScreen() {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [queueData, setQueueData] = useState(null);
   const [patientName, setPatientName] = useState('');
+  const [patientPhone, setPatientPhone] = useState('');
   const [myToken, setMyToken] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetchingDocs, setFetchingDocs] = useState(true);
@@ -74,6 +77,18 @@ export default function PatientHomeScreen() {
       setFetchingDocs(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      getDoc(doc(db, 'users', auth.currentUser.uid)).then((docSnap) => {
+        if (docSnap.exists()) {
+          const userData = docSnap.data();
+          if (userData.name && !patientName) setPatientName(userData.name);
+          if (userData.phone && !patientPhone) setPatientPhone(userData.phone);
+        }
+      }).catch(() => {});
+    }
   }, []);
 
   const filteredDoctors = doctors.filter((docItem) => {
@@ -176,6 +191,13 @@ export default function PatientHomeScreen() {
 
   const handleGetToken = async () => {
     if (!patientName.trim()) return Alert.alert("අවධානයට", "කරුණාකර ඔබේ නම ඇතුළත් කරන්න.");
+    if (!patientPhone.trim()) return Alert.alert("අවධානයට", "කරුණාකර SMS දැනුම්දීම් සඳහා ඔබගේ දුරකථන අංකය ඇතුළත් කරන්න.");
+
+    const formattedPhone = formatSriLankanPhone(patientPhone);
+    if (!formattedPhone) {
+      return Alert.alert("අවධානයට", "කරුණාකර නිවැරදි දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 0771234567).");
+    }
+
     if (!selectedDoctor?.id) return Alert.alert("අවධානයට", "කරුණාකර වෛද්‍යවරයෙකු තෝරන්න.");
     const currentStatus = queueData?.status || selectedDoctor?.status || 'active';
     if (currentStatus === 'offline') return Alert.alert("සායනය වසා ඇත", "මෙම වෛද්‍යවරයාගේ සායන වාරය අවසන් වී ඇත.");
@@ -189,6 +211,7 @@ export default function PatientHomeScreen() {
 
       const tokenData = {
         patientName: patientName.trim(),
+        patientPhone: formattedPhone,
         patientUid: auth.currentUser?.uid || null,
         doctorId: selectedDoctor.id,
         doctorName: getDocName(selectedDoctor),
@@ -198,7 +221,17 @@ export default function PatientHomeScreen() {
       };
       await addDoc(collection(db, 'tokens'), tokenData);
       setMyToken(tokenData);
-      Alert.alert("සාර්ථකයි!", `ඔබේ Token අංකය #${tokenNum} වේ.`);
+
+      // Send SMS via Notify.lk
+      sendTokenConfirmationSMS({
+        phone: formattedPhone,
+        patientName: patientName.trim(),
+        tokenNumber: tokenNum,
+        doctorName: getDocName(selectedDoctor),
+        currentToken: currentToken,
+      }).catch((err) => console.log('Notify.lk Token SMS error:', err));
+
+      Alert.alert("සාර්ථකයි!", `ඔබේ Token අංකය #${tokenNum} වේ.\nSMS මඟින් විස්තර ඔබගේ දුරකථනයට යවන ලදී.`);
     } catch (error) {
       Alert.alert("Error", "Token එක ලබා ගැනීමට නොහැකි විය.");
     } finally {
@@ -338,6 +371,17 @@ export default function PatientHomeScreen() {
             editable={clinicStatus !== 'offline' && !!selectedDoctor}
           />
 
+          <TextInput
+            style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.borderColor, color: theme.textMain, marginTop: 10 }]}
+            placeholder="දුරකථන අංකය (e.g. 0771234567)"
+            value={patientPhone}
+            onChangeText={setPatientPhone}
+            placeholderTextColor={theme.textSub}
+            keyboardType="phone-pad"
+            maxLength={12}
+            editable={clinicStatus !== 'offline' && !!selectedDoctor}
+          />
+
           <TouchableOpacity 
             style={[styles.bookButton, (clinicStatus === 'offline' || !selectedDoctor) ? { backgroundColor: theme.textSub } : { backgroundColor: theme.highlight }]} 
             onPress={handleGetToken}
@@ -352,7 +396,10 @@ export default function PatientHomeScreen() {
         <View style={[styles.myTokenCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
           <Text style={[styles.myTokenLabel, { color: theme.textSub }]}>YOUR TOKEN NUMBER</Text>
           <Text style={[styles.myTokenNumber, { color: theme.textMain }]}>#{myToken.tokenNumber}</Text>
-          <Text style={{ fontSize: 16, color: theme.textMain, fontWeight: '600', marginBottom: 10 }}>නම: {myToken.patientName}</Text>
+          <Text style={{ fontSize: 16, color: theme.textMain, fontWeight: '600', marginBottom: 4 }}>නම: {myToken.patientName}</Text>
+          {myToken.patientPhone ? (
+            <Text style={{ fontSize: 13, color: theme.textSub, marginBottom: 10 }}>📱 දුරකථන: {myToken.patientPhone}</Text>
+          ) : null}
           
           <View style={[styles.statusBox, { borderTopColor: theme.borderColor }]}>
             {patientsAhead > 0 ? (

@@ -11,6 +11,7 @@ import {
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Ionicons } from '@expo/vector-icons';
+import { sendMedicineReadySMS } from '../services/smsService';
 
 export default function PharmacyScreen() {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -43,7 +44,7 @@ export default function PharmacyScreen() {
     return () => unsubscribe();
   }, []);
 
-  const handleMarkAsReady = async (prescriptionId, patientName) => {
+  const handleMarkAsReady = async (prescriptionId, patientName, patientPhone) => {
     try {
       setUpdatingId(prescriptionId);
       const prescriptionRef = doc(db, 'prescriptions', prescriptionId);
@@ -51,7 +52,19 @@ export default function PharmacyScreen() {
         status: 'ready',
         readyAt: serverTimestamp() 
       });
-      Alert.alert("සාර්ථකයි", `${patientName} රෝගියාගේ ඖෂධ සූදානම් බව දන්වන ලදී.`);
+
+      // Send SMS via Notify.lk
+      if (patientPhone) {
+        sendMedicineReadySMS({
+          phone: patientPhone,
+          patientName: patientName || 'Patient',
+        }).catch((err) => console.log('Notify.lk Pharmacy SMS error:', err));
+      }
+
+      Alert.alert(
+        "සාර්ථකයි",
+        `${patientName} රෝගියාගේ ඖෂධ සූදානම් බව දන්වන ලදී.${patientPhone ? '\nSMS පණිවිඩයක් යවන ලදී.' : ''}`
+      );
     } catch (error) {
       Alert.alert("දෝෂයක් මතු විය", "යාවත්කාලීන කිරීමට නොහැකි විය.");
     } finally {
@@ -106,7 +119,12 @@ export default function PharmacyScreen() {
             return (
               <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: isReady ? '#16a34a' : theme.borderColor, borderWidth: isReady ? 2 : 1 }]}>
                 <View style={[styles.cardHeader, { borderBottomColor: theme.borderColor }]}>
-                  <Text style={[styles.patientName, { color: theme.highlight }]}>{item.patientName || 'Patient'}</Text>
+                  <View>
+                    <Text style={[styles.patientName, { color: theme.highlight }]}>{item.patientName || 'Patient'}</Text>
+                    {item.patientPhone ? (
+                      <Text style={{ fontSize: 12, color: theme.textSub, marginTop: 2 }}>📱 {item.patientPhone}</Text>
+                    ) : null}
+                  </View>
                   <Text style={{ fontSize: 13, color: theme.textSub }}>Dr. {item.doctorName || 'Doctor'}</Text>
                 </View>
 
@@ -127,7 +145,7 @@ export default function PharmacyScreen() {
 
                   <TouchableOpacity 
                     style={[styles.readyButton, isReady ? { backgroundColor: '#16a34a' } : { backgroundColor: theme.highlight }]}
-                    onPress={() => handleMarkAsReady(item.id, item.patientName)}
+                    onPress={() => handleMarkAsReady(item.id, item.patientName, item.patientPhone)}
                     disabled={isReady || isUpdating}
                   >
                     {isUpdating ? <ActivityIndicator size="small" color="#ffffff" /> : (
